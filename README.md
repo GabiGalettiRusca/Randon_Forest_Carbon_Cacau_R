@@ -40,10 +40,10 @@ git clone https://github.com/seuusuario/Randon_Forest_Carbon_Cacau_R.git
 5 - Treinar os modelos de classificação e regressão
 6 - Gerar as visualizações e resultados
 
-##🧠 Observações
+## 🧠 Observações
 Os dados utilizados são originários da Indonésia, com sistemas consorciados de cacau com café, dendê e coco.
 
-##📚 Referências
+## 📚 Referências
 BREIMAN, L. Random Forests. Machine Learning, v. 45, n. 1, p. 5–32, 2001. DOI: 
 https://doi.org/10.1023/A:1010933404324. Acesso em: 15 jun. 2025. 
 
