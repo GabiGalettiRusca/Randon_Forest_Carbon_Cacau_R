@@ -24,14 +24,15 @@ O trabalho **"Estoque de Carbono em Sistemas Agroflorestais com Cacau: uma Abord
 ├── relatorio/           # Relatório final em PDF
 ├── README.md            # Este documento
 
-### ⚙️ **Requisitos**
+# ⚙️ **Requisitos**
 Para reproduzir os resultados, é necessário ter o R instalado com os seguintes pacotes:
 
 install.packages(c("caret", "randomForest", "pdp", "tydeverse", "dplyr"))
 
-### ▶️ Como Executar
+# ▶️ Como Executar
 1 - Clone o repositório:
 
+```plaintext
 git clone https://github.com/seuusuario/Randon_Forest_Carbon_Cacau_R.git
 
 2 - Abra o script em RStudio (scripts/modelo_carbono.R)
