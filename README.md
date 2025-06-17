@@ -1,39 +1,38 @@
-# Randon_Forest_Carbon_Cacau_R
-Modelagem preditiva com Random Forest aplicada ao estoque de carbono em sistemas agroflorestais com cacau, utilizando dados do projeto RESTORE+.
-
 # 🌱 Modelagem Preditiva do Estoque de Carbono em Sistemas Agroflorestais com Cacau
-Este repositório contém os scripts e documentos associados ao trabalho de modelagem preditiva com Random Forest, com foco no estoque de carbono (tC/ha) em sistemas agroflorestais tropicais consorciados com cacau. Foram utilizados dados reais do projeto RESTORE+ (IIASA, 2023), oriundos da Indonésia.
+
+Este repositório contém os scripts e documentos associados ao trabalho de modelagem preditiva com **Random Forest**, com foco no **estoque de carbono (tC/ha)** em sistemas agroflorestais tropicais consorciados com cacau. Foram utilizados dados reais do projeto RESTORE+ (IIASA, 2023), oriundos da Indonésia.
+
 O trabalho contempla dois modelos principais:
 
-Modelo 1: Classificação do estoque de carbono (baixo, médio, alto)
-Modelo 2: Regressão contínua do estoque de carbono
+- **Modelo 1**: Classificação do estoque de carbono (baixo, médio, alto)  
+- **Modelo 2**: Regressão contínua do estoque de carbono
 
-O trabalho **"Estoque de Carbono em Sistemas Agroflorestais com Cacau: uma Abordagem de Classificação e Regressão com Random Forest”** foi desenvolvido no contexto da disciplina *Introdução ao Machine Learning (CAM 413)* na Universidade Federal de São Carlos (UFSCar).
+Este projeto foi desenvolvido na disciplina *Introdução ao Machine Learning (CAM 413)* na Universidade Federal de São Carlos (UFSCar).
 
-📍 **Autora**: Gabriela Galetti Rusca  
-📧 Contato: ggrusca@ufscar.estudante.br  
-📘 Programa: Pós-Graduação em Ciências Ambientais – UFSCar  
+**Autora**: Gabriela Galetti Rusca  
+📧 **Contato**: ggrusca@ufscar.estudante.br  
+📘 **Programa**: Pós-Graduação em Ciências Ambientais – UFSCar  
 👨‍🏫 **Professor**: Dr. Marcos Roberto Benso
 
-### 📁 Estrutura do Repositório
+## 📁 Estrutura do Repositório
 
-```plaintext
-├── dados/               # Arquivo .csv ou .rds com a amostra utilizada
-├── figuras/             # Imagens geradas com gráficos e visualizações
-├── scripts/             # Código-fonte em R (.R)
-├── relatorio/           # Relatório final em PDF
-├── README.md            # Este documento
+├── dados/        → Arquivo .csv ou .rds com a amostra utilizada  
+├── figuras/      → Gráficos e visualizações  
+├── scripts/      → Código-fonte em R (.R)  
+├── relatorio/    → Relatório final em PDF  
+├── README.md     → Este documento
 
-# ⚙️ **Requisitos**
+## ⚙️ Requisitos
+
 Para reproduzir os resultados, é necessário ter o R instalado com os seguintes pacotes:
 
-install.packages(c("caret", "randomForest", "pdp", "tydeverse", "dplyr"))
+```r
+install.packages(c("caret", "randomForest", "pdp", "tidyverse", "dplyr"))
 
 
 # ▶️ Como Executar
 1 - Clone o repositório:
 
-```plaintext
 git clone https://github.com/seuusuario/Randon_Forest_Carbon_Cacau_R.git
 
 2 - Abra o script em RStudio (scripts/modelo_carbono.R)
