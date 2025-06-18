@@ -1,1 +1,286 @@
+##############################################
+# Análise de Dados de Sistemas de Cacau
+# Modelagem Preditiva com Random Forest
+# Disciplina CAM413 – UFSCar
+
+##############################################
+
+rm(list = ls())  # Limpa o ambiente
+
+# =============================
+# Instalação de pacotes (execute uma vez)
+# =============================
+# Pacotes principais
+pacotes <- c("caret", "randomForest", "ggplot2", "tidyverse", 
+             "pdp", "plotly", "Hmisc", "e1071", "reshape2","latticeExtra")
+
+# Instala apenas os que não estão instalados ainda
+novos <- pacotes[!(pacotes %in% installed.packages()[,"Package"])]
+if(length(novos)) install.packages(novos)
+
+### Carregar pacotes necessários
+library(caret)         # Modelagem preditiva
+library(tidyverse)     # Manipulação e transformação de dados
+library(randomForest)  # Para usar o partialPlot
+library(pdp)           # Partial Dependence Plots — útil para interpretar o efeito de variáveis nos modelos
+library(plotly)        # O pacote plotly permite criar gráficos interativos em R, incluindo visualizações 2D e 3D.
+                         # Ele é útil para explorar relações entre múltiplas variáveis de forma dinâmica.
+
+### Importar e preparar os dados
+# Definir caminhos dos arquivos
+caminho1 <- "C:/Users/ggale/OneDrive/Desktop/UFSCAR- Doutorado/Disciplinas/CAM413/CAM413_cacau/treecrop_productivity_long.csv"
+caminho2 <- "C:/Users/ggale/OneDrive/Desktop/UFSCAR- Doutorado/Disciplinas/CAM413/CAM413_cacau/prod_systems_code.csv"
+
+# Leitura dos arquivos
+dados1 <- read.csv(caminho1)
+dados2 <- read.csv(caminho2, sep = ';')
+
+# Juntar os dois arquivos pela variável "parameter_code"
+dados <- merge(dados1, dados2, by = "parameter_code")
+dados$parameter_name <- as.factor(dados$parameter_name)
+
+### Amostragem para testes rápidos
+# Selecionar 2% dos dados para teste e evitar demora
+idx <- createDataPartition(dados$production_system, p = 0.02, list = FALSE)
+dados_sub <- dados[idx, ]
+
+### Filtrar apenas os consórcios com cacau
+filtros_validos <- c("Cacao (with rubber)", "Cacao (with Oil palm)", "Cacao (with coconut)", "Cacao (with Coffee)")
+
+dados_sub <- dados_sub %>%
+  filter(parameter_name %in% filtros_validos) %>%
+  mutate(parameter_description = str_trim(parameter_description)) %>%
+  pivot_wider(names_from = "parameter_description", values_from = "value")
+
+### Separar subconjuntos para yield e carbono
+# Subconjunto com dados de carbono
+dados_sub_carbon <- dados_sub[!is.na(dados_sub$`Carbon stock of cacao`), ]
+dados_sub_carbon <- dados_sub_carbon[, -which(names(dados_sub_carbon) == "Production yield of cacao")]
+
+### Subconjunto com dados de produtividade
+dados_sub_yield <- dados_sub[!is.na(dados_sub$`Production yield of cacao`), ]
+dados_sub_yield <- dados_sub_yield[, -which(names(dados_sub_yield) == "Carbon stock of cacao")]
+
+### Unir os subconjuntos
+# Juntar pelo grid_code para manter coerência espacial
+dados_sub_final <- merge(dados_sub_yield[, c("grid_code", "Production yield of cacao")],
+                         dados_sub_carbon, by = "grid_code")
+
+### Reorganizar e renomear colunas
+dados_sub_final <- dados_sub_final[, c(1, 3:11, 2)]
+colnames(dados_sub_final)[10:11] <- c("carbon", "yield")
+dados_sub_final$parameter_name <- droplevels(dados_sub_final$parameter_name)
+
+### Ordenar faixas etárias: ajuste do fator age_group
+# Níveis ordenados de idade (faixas etárias de plantio)
+ordem_correta <- c("1-2", "3-8", "3-9", "9-25", "10-25", "26-30", "26-40")
+dados_sub_final$age_group <- factor(dados_sub_final$age_group,
+                                    levels = ordem_correta,
+                                    ordered = TRUE)
+
+### Balancear amostras por faixa etária
+# Esse procedimento mantém o mesmo número de observações para cada faixa
+
+set.seed(123)
+
+min_amostras <- dados_sub_final %>%
+  group_by(age_group) %>%
+  summarise(n = n()) %>%
+  pull(n) %>%
+  min()
+
+dados_sub_final <- dados_sub_final %>%
+  group_by(age_group) %>%
+  sample_n(min_amostras) %>%
+  ungroup()
+
+###Criar classes para modelos de classificação
+# Criar variável categórica para produtividade (baixa, média, alta)
+
+dados_sub_final <- dados_sub_final %>%
+  mutate(
+    carbon_class = cut(carbon, 
+                       breaks = quantile(carbon, probs = c(0, 1/3, 2/3, 1), na.rm = TRUE),
+                       labels = c("Baixo", "Médio", "Alto"), 
+                       include.lowest = TRUE),
+    carbon_class = factor(carbon_class, levels = c("Baixo", "Médio", "Alto"), ordered = TRUE)
+  )
+
+###############################################################################
+### Divisão em treino e teste
+
+set.seed(123)
+idx <- createDataPartition(dados_sub_final$parameter_name, p = 0.8, list = FALSE)
+treino <- dados_sub_final[idx, ]
+teste  <- dados_sub_final[-idx, ]
+
+###############################################################################
+### AJUSTE DE HIPERPARÂMETRO (mtry) COM VALIDAÇÃO-CRUZADA e tuning do Random Forest
+#Objetivo: escolher automaticamente quantas variáveis aleatórias (mtry) usar
+#          em cada split de consorcio para obter a maior acurácia possível.
+###############################################################################
+### Definir a estratégia de VALIDAÇÃO - CRUZADA
+# 10 folds = divide o treino em 10 partes, treina em 9 e valida na 10ª, repetindo.
+
+controle_cv <- trainControl(
+  method = "cv",      # cross-validation
+  number = 10,         # 10 folds
+  savePredictions = "final"
+)
+
+### Definição da Grade de Hiperparâmetros (mtry) 
+# Nesta etapa, definimos os valores possíveis de mtry (número de variáveis preditoras consideradas por split)
+# que serão testados pelo algoritmo durante a validação cruzada.
+
+grade_parametros <- expand.grid(mtry = 2:6)
+
+###############################################################################
+### Modelo 1 - Classificação do Carbono (Baixo, Médio, Alto)
+
+modelo_class_carbon <- train(
+  carbon_class ~ soil_type + age_group + value_class + parameter_name + yield,
+  data = treino,
+  method = "rf",
+  trControl = controle_cv, # Validação cruzada 10-fold
+  tuneGrid = grade_parametros, # Grade de mtry: 2 a 6
+  importance = TRUE # para depois ver importância de variáveis
+)
+
+# Exibir sumário do modelo
+
+print(modelo_class_carbon)
+
+# Gráfico com título (usa latticeExtra)
+
+grafico_carbon <- update(
+  plot(modelo_class_carbon),
+  main = "Acurácia x Preditores - Classificação Carbono"
+)
+
+print(grafico_carbon)
+
+
+###############################################################################
+###Avaliação no conjunto de teste
+# Predição das classes para dados nunca vistos e comparação com os rótulos reais
+
+cat("\nClassificação de carbono (conjunto de teste):\n")
+pred_carbon <- predict(modelo_class_carbon, newdata = teste)
+print(confusionMatrix(pred_carbon, teste$carbon_class))
+
+# Exibir matriz de confusão com métricas de acurácia, sensibilidade, etc.
+
+matriz_confusao_carbon <- confusionMatrix(pred_carbon, teste$carbon_class)
+print(matriz_confusao_carbon)
+
+# Criar gráfico da matriz de confusão
+
+cm_df <- as.data.frame(as.table(matriz_confusao_carbon$table))
+colnames(cm_df) <- c("Real", "Previsto", "Frequência")
+
+ggplot(cm_df, aes(x = Real, y = Previsto, fill = Frequência)) +
+  geom_tile() +
+  geom_text(aes(label = Frequência), color = "white", size = 6) +
+  scale_fill_gradient(low = "gray90", high = "steelblue") +
+  theme_minimal() +
+  labs(title = "Matriz de Confusão - Classificação do Estoque de Carbono")
+
+print(varImp(modelo_class_carbon))
+
+###############################################################################
+### Modelo 3 -  Modelo de Regressão para Estoque de Carbono (carbon)
+# Modelo preditivo com variável resposta contínua: carbono acumulado (tC/ha)
+
+modelo_carbon_rf <- train(
+  carbon ~ soil_type + age_group + value_class + parameter_name + yield,
+  data = treino, 
+  method = "rf",
+  trControl = controle_cv,
+  tuneGrid = grid_mtry
+)
+
+# Avaliação do desempenho do modelo treinado
+
+print(modelo_carbon_rf)
+
+
+### Importância das Variáveis nos Modelos de Regressão
+# Verifica as variáveis mais relevantes para explicar produtividade e carbono
+
+cat("\nImportância das variáveis para o modelo de carbono:\n")
+print(varImp(modelo_carbon_rf))
+
+### Conferir estrutura dos fatores de idade
+
+str(treino$age_group)
+levels(treino$age_group)
+
+###############################################################################
+### Boxplots comparativos por sistema
+
+ggplot(treino, aes(x = parameter_name, y = yield)) +
+  geom_boxplot(fill = "lightgreen") +
+  labs(title = "Produtividade por Tipo de Consórcio", y = "Produtividade (t/ha)", x = "Sistema de Consórcio")
+
+###Gráficos de Dispersão (scatterplot) com Regressão Linear por Grupo
+#Objetivo: Visualizar tendências entre carbono e produtividade por tipo de consórcio.
+
+ggplot(treino, aes(x = carbon, y = yield, color = parameter_name)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(title = "Carbono vs Produtividade por tipo de consórcio",
+       x = "Carbono (tC/ha)", y = "Produtividade (t/ha)") +
+  theme_minimal()
+
+###Gráficos de Linha por Idade (age_group)
+#Objetivo: Explorar o efeito combinado de idade com produtividade e carbono.
+
+dados_resumo <- treino %>%
+  group_by(age_group) %>%
+  summarise(media_prod = mean(yield, na.rm = TRUE),
+            media_carbon = mean(carbon, na.rm = TRUE))
+
+# Linhas paralelas
+
+ggplot(dados_resumo) +
+  geom_line(aes(x = age_group, y = media_prod, group = 1), color = "blue") +
+  geom_line(aes(x = age_group, y = media_carbon, group = 1), color = "darkgreen") +
+  labs(title = "Média de produtividade e carbono por faixa etária",
+       y = "Valor", x = "Grupo etário") +
+  theme_minimal()
+
+
+###Testes Estatísticos (ANOVA, Tukey)
+#Objetivo: Comparar se há diferenças significativas de carbono ou produtividade entre os tipos de consórcio.
+
+anova_carbon <- aov(carbon ~ parameter_name, data = treino)
+summary(anova_carbon)
+TukeyHSD(anova_carbon)
+
+### Gráfico 3D interativo: Relação entre Carbono, Idade e Produtividade por tipo de consórcio
+# Este gráfico permite visualizar a interação entre três variáveis-chave:
+# - Eixo X: Carbono (tC/ha) acumulado no sistema
+# - Eixo Y: Faixa etária da plantação de cacau (convertida para valor numérico)
+# - Eixo Z: Produtividade de cacau (t/ha)
+# A cor dos pontos representa o tipo de consórcio (e.g. cacau com coco, café ou dendê).
+# A visualização ajuda a identificar padrões como aumento de carbono com a idade,
+# possíveis relações inversas entre carbono e produtividade, e agrupamentos por tipo de sistema.
+
+plot_ly(data = treino,
+        x = ~carbon,
+        y = ~as.numeric(age_group),
+        z = ~yield,
+        type = "scatter3d",
+        mode = "markers",
+        color = ~parameter_name,
+        colors = c("forestgreen", "orangered", "steelblue")) %>%
+  layout(scene = list(
+    xaxis = list(title = "Carbono (tC/ha)"),
+    yaxis = list(title = "Faixa etária (código)"),
+    zaxis = list(title = "Produtividade (t/ha)"),
+    camera = list(eye = list(x = 1.5, y = 1.5, z = 0.8))
+  ),
+  title = "Carbono x Idade x Produtividade - por Tipo de Consórcio")
+dev.off()
+
 
