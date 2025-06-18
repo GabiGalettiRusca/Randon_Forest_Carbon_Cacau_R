@@ -17,7 +17,7 @@ Este projeto foi desenvolvido na disciplina *Introdução ao Machine Learning (C
 ## 📁 Estrutura do Repositório
 
 ├── scripts/      → Código-fonte em R (.R)  
-├── relatorio/    → Relatório final em PDF  
+├── ESTOQUE DE CARBONO EM SISTEMAS...    → Relatório final em PDF  
 ├── README.md     → Este documento
 
 Link para base de dados: https://zenodo.org/records/7937135
