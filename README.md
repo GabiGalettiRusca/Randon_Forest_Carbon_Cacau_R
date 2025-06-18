@@ -16,8 +16,6 @@ Este projeto foi desenvolvido na disciplina *Introdução ao Machine Learning (C
 
 ## 📁 Estrutura do Repositório
 
-├── dados/        → Arquivo .csv ou .rds com a amostra utilizada  
-├── figuras/      → Gráficos e visualizações  
 ├── scripts/      → Código-fonte em R (.R)  
 ├── relatorio/    → Relatório final em PDF  
 ├── README.md     → Este documento
