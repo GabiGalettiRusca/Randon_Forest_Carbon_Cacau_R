@@ -22,6 +22,8 @@ Este projeto foi desenvolvido na disciplina *Introdução ao Machine Learning (C
 ├── relatorio/    → Relatório final em PDF  
 ├── README.md     → Este documento
 
+Link para base de dados: https://zenodo.org/records/7937135
+
 ## ⚙️ Requisitos
 
 Para reproduzir os resultados, é necessário ter o R instalado com os seguintes pacotes:
